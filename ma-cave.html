@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ma Cave – Fiches de Dégustation</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+  :root {
+    --brown: #3C2A1A;
+    --brown-mid: #6B3F1A;
+    --brown-light: #C8A882;
+    --cream: #FFFCF8;
+    --cream-dark: #F5ECD8;
+    --cream-mid: #F0E4CE;
+    --cream-note: #FDF5E6;
+    --border: #C8A882;
+    --border-light: #E0C9A6;
+    --text-dark: #2C1A0A;
+    --text-mid: #7A5C3A;
+    --text-label: #A07850;
+    --text-note: #5C3D1A;
+    --gold: #B8760A;
+    --bg: #F7F0E6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Lato', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text-dark); }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--brown);
+    padding: 0 1.5rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 2px 12px rgba(60,42,26,.25);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-logo { font-size: 22px; }
+  .topbar-title { font-family: 'Playfair Display', serif; font-size: 18px; color: #F5D9B5; font-weight: 600; }
+  .topbar-sub { font-size: 10px; color: var(--brown-light); letter-spacing: .12em; text-transform: uppercase; margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .sync-status { font-size: 11px; color: var(--brown-light); display: flex; align-items: center; gap: 5px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; flex-shrink: 0; }
+  .sync-dot.ok { background: #5CB85C; }
+  .sync-dot.syncing { background: #F5A623; animation: pulse .8s ease-in-out infinite alternate; }
+  .sync-dot.error { background: #D9534F; }
+  @keyframes pulse { to { opacity: .3; } }
+  .btn-drive { padding: 6px 14px; border: 1px solid #F5D9B5; border-radius: 20px; background: transparent; color: #F5D9B5; font-family: 'Lato', sans-serif; font-size: 12px; cursor: pointer; transition: all .2s; white-space: nowrap; }
+  .btn-drive:hover { background: rgba(245,217,181,.15); }
+
+  /* TABS */
+  .tabs-wrap { background: var(--brown); padding: 0 1.5rem; border-top: 1px solid rgba(200,168,130,.2); }
+  .tabs { display: flex; gap: 0; }
+  .tab { padding: 10px 20px; border: none; background: transparent; font-family: 'Lato', sans-serif; font-size: 13px; color: rgba(245,217,181,.6); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; }
+  .tab.active { color: #F5D9B5; border-bottom-color: var(--brown-light); font-weight: 700; }
+
+  /* MAIN */
+  .main { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  /* FORM */
+  .url-section { background: white; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; border: 0.5px solid var(--border-light); box-shadow: 0 1px 4px rgba(60,42,26,.06); }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-label); margin-bottom: 8px; }
+  .url-row { display: flex; gap: 8px; }
+  .url-input { flex: 1; font-family: 'Lato', sans-serif; font-size: 13px; padding: 9px 12px; border: 0.5px solid #DDD; border-radius: 8px; background: #FAFAFA; color: var(--text-dark); outline: none; }
+  .url-input:focus { border-color: var(--brown-mid); }
+  .btn-analyze { padding: 9px 16px; border: none; border-radius: 8px; background: var(--brown-mid); color: #FFF8F0; font-family: 'Lato', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-analyze:disabled { opacity: .5; cursor: not-allowed; }
+  .fetch-status { font-size: 12px; margin-top: 8px; min-height: 16px; display: flex; align-items: center; gap: 6px; color: #888; }
+  .fetch-status.ok { color: #3B6D11; }
+  .fetch-status.err { color: #A32D2D; }
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--brown-light); border-top-color: var(--brown-mid); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: #AAA; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 0.5px; background: #DDD; }
+
+  .type-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  @media(max-width:500px){ .type-selector { grid-template-columns: repeat(4,1fr); } }
+  .type-btn { padding: 8px 4px; border: 0.5px solid #DDD; border-radius: 8px; background: white; cursor: pointer; text-align: center; font-size: 10px; font-family: 'Lato', sans-serif; color: #888; transition: all .2s; }
+  .type-btn .te { font-size: 18px; display: block; margin-bottom: 2px; }
+  .type-btn.active { border-color: var(--brown-mid); background: #FBF4EE; color: var(--brown-mid); font-weight: 700; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fg { display: flex; flex-direction: column; gap: 4px; }
+  .fg.full { grid-column: 1/-1; }
+  .fg label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-label); }
+  .fg input, .fg textarea { font-family: 'Lato', sans-serif; font-size: 13px; padding: 8px 10px; border: 0.5px solid #DDD; border-radius: 8px; background: #FAFAFA; color: var(--text-dark); outline: none; width: 100%; transition: border .2s; }
+  .fg input:focus, .fg textarea:focus { border-color: var(--brown-mid); background: white; }
+  .fg textarea { resize: vertical; min-height: 58px; }
+
+  .photo-wrap { display: flex; gap: 10px; align-items: flex-start; }
+  .photo-box { width: 56px; height: 94px; border: 0.5px solid #DDD; border-radius: 8px; background: #F5ECD8; display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; flex-shrink: 0; }
+  .photo-box img { width: 100%; height: 100%; object-fit: contain; }
+  .photo-right { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .btn-photo-search { padding: 7px 10px; border: 0.5px solid #DDD; border-radius: 8px; background: transparent; font-family: 'Lato', sans-serif; font-size: 12px; color: #888; cursor: pointer; text-align: left; }
+  .btn-photo-search:hover { border-color: var(--brown-mid); color: var(--brown-mid); }
+
+  .rating-row { display: flex; gap: 3px; margin-top: 2px; }
+  .star { font-size: 20px; cursor: pointer; color: #DDD; transition: color .1s; }
+  .star.lit { color: var(--gold); }
+
+  .form-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; }
+  .btn-clear { padding: 9px 18px; border: 0.5px solid #DDD; border-radius: 8px; background: transparent; color: #888; font-family: 'Lato', sans-serif; font-size: 13px; cursor: pointer; }
+  .btn-submit { padding: 9px 20px; border: none; border-radius: 8px; background: var(--brown-mid); color: #FFF8F0; font-family: 'Lato', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .edit-banner { background: #FBF4EE; border: 0.5px solid var(--border); border-radius: 8px; padding: 8px 14px; margin-bottom: 14px; font-size: 12px; color: var(--brown-mid); display: flex; justify-content: space-between; align-items: center; }
+
+  /* PREVIEW */
+  .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+  .preview-count { font-size: 13px; color: #888; }
+  .btn-print { padding: 9px 18px; border: 0.5px solid var(--brown-mid); border-radius: 8px; background: var(--brown-mid); color: #FFF8F0; font-family: 'Lato', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+  .filters-row { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .filter-btn { padding: 5px 12px; border: 0.5px solid #DDD; border-radius: 20px; background: white; font-family: 'Lato', sans-serif; font-size: 11px; cursor: pointer; color: #888; transition: all .15s; }
+  .filter-btn.active { background: var(--brown-mid); color: #FFF8F0; border-color: var(--brown-mid); font-weight: 700; }
+  .filter-count { font-size: 10px; background: rgba(107,63,26,.12); color: var(--brown-mid); padding: 1px 5px; border-radius: 10px; margin-left: 3px; }
+  .filter-btn.active .filter-count { background: rgba(255,255,255,.2); color: #FFF8F0; }
+
+  .fiches-grid { display: flex; flex-direction: column; gap: 12px; }
+
+  /* FICHE CARD */
+  .fiche-card { background: var(--cream); border: 0.5px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; display: grid; grid-template-columns: 72px 1fr; box-shadow: 0 2px 8px rgba(60,42,26,.08); }
+  .fiche-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--brown-mid); border-radius: 10px 0 0 10px; z-index: 1; }
+  .fiche-photo-col { grid-row: 1/5; background: var(--cream-mid); display: flex; align-items: center; justify-content: center; border-right: 0.5px solid var(--border); padding: 8px 6px; position: relative; cursor: pointer; }
+  .fiche-photo-col:hover .photo-overlay { opacity: 1; }
+  .photo-overlay { position: absolute; inset: 0; background: rgba(60,30,10,.45); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s; font-size: 10px; color: white; font-weight: 700; text-align: center; padding: 4px; }
+  .fiche-img { width: 52px; height: 90px; object-fit: contain; border-radius: 4px; }
+  .fiche-placeholder { width: 40px; height: 70px; display: flex; align-items: center; justify-content: center; font-size: 26px; opacity: .5; }
+  .fiche-header { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--cream-dark); border-bottom: 0.5px solid var(--border); }
+  .fiche-icon { font-size: 18px; }
+  .fiche-title-block { flex: 1; min-width: 0; }
+  .fiche-name { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 600; color: var(--text-dark); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fiche-origin { font-size: 9px; color: var(--text-mid); letter-spacing: .06em; text-transform: uppercase; margin-top: 1px; }
+  .fiche-badge { background: var(--brown-mid); color: #F5D9B5; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+  .fiche-body { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 8px 14px; }
+  .fiche-col { padding-right: 10px; }
+  .fiche-col:not(:last-child) { border-right: 0.5px solid var(--border-light); margin-right: 10px; }
+  .fl { font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-label); margin-bottom: 2px; margin-top: 6px; }
+  .fl:first-child { margin-top: 0; }
+  .fv { font-size: 11px; color: var(--text-dark); line-height: 1.4; }
+  .fiche-note { padding: 5px 14px 7px; background: var(--cream-note); border-top: 0.5px solid var(--border-light); font-size: 10px; color: var(--text-note); font-style: italic; line-height: 1.4; }
+  .fiche-source { padding: 3px 14px 5px; font-size: 9px; color: var(--text-label); border-top: 0.5px solid var(--border-light); }
+  .fiche-source a { color: var(--brown-mid); text-decoration: none; }
+  .fiche-actions-bar { display: flex; gap: 4px; padding: 6px 14px 7px; border-top: 0.5px solid var(--border-light); background: #FAF3E8; }
+  .faction { padding: 4px 10px; border: 0.5px solid #DDD; border-radius: 6px; background: white; font-family: 'Lato', sans-serif; font-size: 11px; cursor: pointer; color: #888; transition: all .15s; }
+  .faction:hover { border-color: var(--brown-mid); color: var(--brown-mid); }
+  .faction.del:hover { border-color: #A32D2D; color: #A32D2D; }
+
+  /* MODALS */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
+  .overlay.hidden { display: none; }
+  .modal { background: white; border-radius: 12px; padding: 20px; width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,.25); }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .btn-ok { padding: 8px 18px; border: none; border-radius: 8px; background: var(--brown-mid); color: #FFF8F0; font-family: 'Lato', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-cancel { padding: 8px 18px; border: 0.5px solid #DDD; border-radius: 8px; background: transparent; color: #888; font-family: 'Lato', sans-serif; font-size: 13px; cursor: pointer; }
+  .photo-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; max-height: 260px; overflow-y: auto; }
+  .photo-opt { border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; aspect-ratio: 3/4; background: #F5ECD8; }
+  .photo-opt img { width: 100%; height: 100%; object-fit: contain; }
+  .photo-opt.sel { border-color: var(--brown-mid); }
+  .photo-opt:hover { border-color: var(--brown-light); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--brown); color: #F5D9B5; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-family: 'Lato', sans-serif; z-index: 300; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* PRINT */
+  @media print {
+    .topbar, .tabs-wrap, .fiche-actions-bar, .btn-print, .preview-header, .filters-row { display: none !important; }
+    body { background: white; }
+    .main { padding: 0; max-width: 100%; }
+    .fiche-card { page-break-inside: avoid; box-shadow: none; border: 0.5px solid #aaa !important; margin-bottom: 8px; }
+  }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 3rem 1rem; color: #AAA; font-size: 13px; }
+  .empty-icon { font-size: 48px; display: block; margin-bottom: 10px; }
+
+  /* Login screen */
+  .login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; padding: 2rem; }
+  .login-icon { font-size: 56px; margin-bottom: 1rem; }
+  .login-title { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px; }
+  .login-sub { font-size: 14px; color: #888; margin-bottom: 2rem; max-width: 360px; line-height: 1.6; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-logo">🍶</span>
+    <div>
+      <div class="topbar-title">Ma Cave</div>
+      <div class="topbar-sub">Fiches de dégustation</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="sync-status" id="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">Non connecté</span>
+    </div>
+    <button class="btn-drive" id="btn-auth" onclick="handleAuth()">Connecter Drive</button>
+  </div>
+</div>
+
+<div class="tabs-wrap">
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('form')">+ Ajouter</button>
+    <button class="tab" onclick="showTab('preview')">Mes fiches (<span id="count">0</span>)</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- FORM -->
+  <div id="panel-form" class="panel active">
+    <div id="edit-banner" class="edit-banner" style="display:none">
+      ✏️ Modification de : <strong id="edit-name"></strong>
+      <button class="btn-clear" style="padding:4px 10px;font-size:11px" onclick="cancelEdit()">Annuler</button>
+    </div>
+
+    <div class="url-section">
+      <div class="section-label">🔗 Importer depuis un lien produit</div>
+      <div class="url-row">
+        <input class="url-input" id="url-input" type="url" placeholder="https://www.whisky.fr/produit/...">
+        <button class="btn-analyze" id="btn-fetch" onclick="fetchFromUrl()">Analyser</button>
+      </div>
+      <div class="fetch-status" id="fetch-status"></div>
+    </div>
+
+    <div class="divider">ou saisir manuellement</div>
+
+    <div style="margin-bottom:14px">
+      <div class="section-label" style="margin-bottom:8px">Type de spiritueux</div>
+      <div class="type-selector">
+        <div class="type-btn active" onclick="selType(this,'Rhum')"><span class="te">🍹</span>Rhum</div>
+        <div class="type-btn" onclick="selType(this,'Whisky')"><span class="te">🥃</span>Whisky</div>
+        <div class="type-btn" onclick="selType(this,'Cognac')"><span class="te">🍷</span>Cognac</div>
+        <div class="type-btn" onclick="selType(this,'Gin')"><span class="te">🌿</span>Gin</div>
+        <div class="type-btn" onclick="selType(this,'Calvados')"><span class="te">🍎</span>Calvados</div>
+        <div class="type-btn" onclick="selType(this,'Armagnac')"><span class="te">🫙</span>Armagnac</div>
+        <div class="type-btn" onclick="selType(this,'Brandy')"><span class="te">🫗</span>Brandy</div>
+        <div class="type-btn" onclick="selType(this,'Autre')"><span class="te">✨</span>Autre</div>
+      </div>
+    </div>
+
+    <div class="form-grid" style="margin-bottom:10px">
+      <div class="fg full"><label>Nom de la bouteille</label><input id="f-nom" type="text" placeholder="ex. Plantation XO 20th Anniversary"></div>
+      <div class="fg"><label>Sous-type / appellation</label><input id="f-soustype" type="text" placeholder="ex. Single Malt, XO…"></div>
+      <div class="fg"><label>Origine</label><input id="f-origine" type="text" placeholder="ex. Barbade, Speyside…"></div>
+      <div class="fg"><label>Degré (%)</label><input id="f-degre" type="text" placeholder="ex. 43 %"></div>
+      <div class="fg"><label>Volume</label><input id="f-volume" type="text" placeholder="ex. 0,7 L"></div>
+      <div class="fg full"><label>Vieillissement / élaboration</label><input id="f-vieillissement" type="text"></div>
+      <div class="fg full"><label>Nez</label><textarea id="f-nez"></textarea></div>
+      <div class="fg full"><label>Bouche</label><textarea id="f-bouche"></textarea></div>
+      <div class="fg full"><label>Finale</label><input id="f-finale" type="text"></div>
+      <div class="fg full"><label>Notes & particularités</label><textarea id="f-notes"></textarea></div>
+      <div class="fg"><label>Note personnelle</label><div class="rating-row" id="stars"><span class="star" onclick="setRating(1)">★</span><span class="star" onclick="setRating(2)">★</span><span class="star" onclick="setRating(3)">★</span><span class="star" onclick="setRating(4)">★</span><span class="star" onclick="setRating(5)">★</span></div></div>
+      <div class="fg"><label>Prix indicatif</label><input id="f-prix" type="text" placeholder="ex. 45 €"></div>
+      <div class="fg full">
+        <label>Photo de la bouteille</label>
+        <div class="photo-wrap">
+          <div class="photo-box" id="form-photo-box"><span style="font-size:24px">🍾</span></div>
+          <div class="photo-right">
+            <input id="f-photo" type="text" placeholder="URL de l'image" oninput="updateFormPhoto()">
+            <button class="btn-photo-search" onclick="openPhotoModal()">🔍 Rechercher automatiquement</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-clear" onclick="clearForm()">Effacer</button>
+      <button class="btn-submit" id="btn-submit" onclick="submitFiche()">Ajouter à mes fiches →</button>
+    </div>
+  </div>
+
+  <!-- PREVIEW -->
+  <div id="panel-preview" class="panel">
+    <div class="preview-header">
+      <div class="preview-count" id="preview-label">0 fiche(s)</div>
+      <button class="btn-print" onclick="window.print()">🖨 Imprimer</button>
+    </div>
+    <div class="filters-row" id="filters-row"></div>
+    <div class="fiches-grid" id="fiches-container"></div>
+  </div>
+</div>
+
+<!-- MODAL: Photo search -->
+<div class="overlay hidden" id="modal-photo">
+  <div class="modal">
+    <div class="modal-title">📸 Choisir une photo</div>
+    <div style="font-size:12px;color:#888;margin-bottom:6px">Recherche pour : <strong id="photo-query"></strong></div>
+    <div id="photo-search-status" class="fetch-status"><span class="spinner"></span> Recherche…</div>
+    <div class="photo-grid" id="photo-results"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-photo')">Annuler</button>
+      <button class="btn-ok" onclick="confirmPhoto()">Choisir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Card photo -->
+<div class="overlay hidden" id="modal-card-photo">
+  <div class="modal">
+    <div class="modal-title">📸 Modifier la photo</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Colle une URL ou recherche automatiquement.</div>
+    <input id="card-photo-url" type="text" placeholder="https://... URL de l'image" style="width:100%;font-family:Lato,sans-serif;font-size:13px;padding:8px 10px;border:0.5px solid #DDD;border-radius:8px;outline:none;margin-bottom:8px">
+    <button class="btn-photo-search" onclick="searchCardPhoto()">🔍 Rechercher automatiquement</button>
+    <div id="card-photo-status" class="fetch-status" style="margin-top:6px"></div>
+    <div class="photo-grid" id="card-photo-results" style="margin-top:8px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-card-photo')">Annuler</button>
+      <button class="btn-ok" onclick="confirmCardPhoto()">Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Delete -->
+<div class="overlay hidden" id="modal-delete">
+  <div class="modal">
+    <div class="modal-title">🗑 Supprimer la fiche</div>
+    <p style="font-size:14px;color:#444;line-height:1.5">Voulez-vous vraiment supprimer la fiche de <strong id="delete-name"></strong> ?</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-delete')">Annuler</button>
+      <button class="btn-ok" style="background:#A32D2D" onclick="confirmDelete()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CLIENT_ID = '1070727212660-k27jsunjgfhc3ht6fns7smrp3k9np50g.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const FILE_NAME = 'ma-cave-fiches.json';
+const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+
+const typeIcons = {Rhum:'🍹',Whisky:'🥃',Cognac:'🍷',Gin:'🌿',Calvados:'🍎',Armagnac:'🫙',Brandy:'🫗',Mezcal:'🌵',Autre:'✨'};
+
+let fiches = [
+  {nom:'Plantation Rum – XO 20th Anniversary',sousType:'Rhum ambré / XO',type:'Rhum',origine:'Barbade',degre:'40 %',volume:'0,7 L',vieillissement:'8–15 ans bourbon (Barbade), puis 10 ans fûts cognac (France)',nez:'Floral, vanille, cacao, chocolat au lait, fleurs',bouche:'Douce, caramel, épices, molasses, fruits tropicaux, chocolat',finale:'Longue, vanille épicée et boisé délicat',notes:'Double vieillissement tropical + cognac, commémorant les 20 ans d\'Alexandre Gabriel.',rating:5,prix:'65 €',source:'',photo:''},
+  {nom:'The Balvenie 14 ans Caribbean Cask',sousType:'Single Malt Scotch',type:'Whisky',origine:'Écosse, Speyside',degre:'43 %',volume:'0,7 L',vieillissement:'14 ans fûts traditionnels, finition fûts rhum des Caraïbes',nez:'Vanille, caramel, fruits tropicaux, notes boisées douces',bouche:'Miel, vanille, fruits exotiques, épices douces',finale:'Longue, dominée par vanille et chêne',notes:'Finition originale apportant des notes exotiques uniques.',rating:4,prix:'55 €',source:'',photo:''},
+  {nom:'Akashi – Blended Whisky',sousType:'Blended Whisky',type:'Whisky',origine:'Japon, Distillerie Eigashima',degre:'40 %',volume:'0,5 L',vieillissement:'Malt et grain, fûts de chêne américain',nez:'Doux, malté, céréales, fruits jaunes',bouche:'Ronde, vanille, caramel, fruits secs',finale:'Courte à moyenne, légèrement boisée',notes:'Emblématique de l\'entrée de gamme Akashi.',rating:3,prix:'30 €',source:'',photo:''},
+  {nom:"Plantation Rum – Stiggins' Fancy Pineapple",sousType:'Rhum vieux aromatisé ananas',type:'Rhum',origine:'Caraïbes',degre:'40 %',volume:'0,7 L',vieillissement:"Rhum vieilli en fûts, infusion d'ananas, recette inspirée de 1824",nez:'Ananas rôti, miel, épices douces, vanille',bouche:'Gourmande, ananas caramélisé, fruits tropicaux, épices, miel',finale:"Longue et fruitée, persistante sur l'ananas et la vanille",notes:"Infusion artisanale d'ananas dans du rhum vieux. Idéale pure ou en cocktail.",rating:0,prix:'',source:'',photo:''},
+  {nom:'Woodford Reserve – Double Oaked',sousType:'Bourbon Whiskey',type:'Whisky',origine:'Kentucky, USA',degre:'43,2 %',volume:'0,7 L',vieillissement:'Fût de chêne neuf toasté, puis finition en second fût fortement bousiné',nez:'Vanille, caramel, miel, chocolat noir, bois toasté',bouche:'Riche et onctueuse, chêne grillé, chocolat, épices, fruits secs',finale:'Longue et chaleureuse, bois toasté et vanille',notes:'Vieillissement unique en deux fûts. Expression riche et boisée.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Clément – Secrets de Fûts Intense',sousType:'Rhum vieux agricole',type:'Rhum',origine:'Martinique',degre:'41,4 %',volume:'0,7 L',vieillissement:'Élevé en fûts de chêne français et américains',nez:'Notes boisées, vanille, fruits secs, épices',bouche:'Intense et complexe, boisé, caramel, épices, fruits mûrs',finale:'Persistante et équilibrée, chêne et vanille',notes:'Assemblage de fûts soigneusement sélectionnés, savoir-faire de la Maison Clément.',rating:0,prix:'',source:'',photo:''},
+  {nom:"Delord – Bas-Armagnac Hors d'Âge",sousType:"Bas-Armagnac Hors d'Âge",type:'Armagnac',origine:'Gascogne, France',degre:'40 %',volume:'0,7 L',vieillissement:"Assemblage d'eaux-de-vie âgées (minimum 10 ans)",nez:'Fruits confits, pruneaux, vanille, chêne toasté',bouche:'Riche et complexe, fruits secs, cacao, épices douces, rancio élégant',finale:'Longue et soyeuse, bois noble et épices',notes:'Maison familiale fondée en 1893, réputée pour son armagnac artisanal.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Ronsard – XO Brandy',sousType:'Brandy XO',type:'Brandy',origine:'France',degre:'40 %',volume:'0,7 L',vieillissement:'Assemblage de brandies vieillis plusieurs années en fûts de chêne',nez:'Notes boisées, caramel, fruits secs, vanille',bouche:'Ronde et douce, chêne, prune, chocolat, épices légères',finale:'Équilibrée, persistante, caramel et bois',notes:'Brandy français XO offrant un excellent rapport qualité/prix.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Bache Gabrielsen – Whisky Français Single Malt 5 ans',sousType:'Whisky Single Malt français',type:'Whisky',origine:'France, Charente',degre:'44 %',volume:'0,7 L',vieillissement:'5 ans en fûts de chêne français et américains, double maturation',nez:'Vanille, fruits jaunes, notes florales et boisées',bouche:'Équilibrée, ronde, céréales, miel, épices, boisé subtil',finale:'Moyenne à longue, élégante et légèrement épicée',notes:'Première incursion de la maison Bache Gabrielsen (fondée 1905) dans le whisky français.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Kornog – Whisky Single Malt Tourbé',sousType:'Whisky Single Malt tourbé',type:'Whisky',origine:'Bretagne, France (Celtic Whisky Distillerie)',degre:'46 %',volume:'0,7 L',vieillissement:'Fûts de chêne ayant contenu du sherry et du bourbon',nez:'Notes marines, tourbe iodée, agrumes, vanille',bouche:'Puissante, équilibrée entre la tourbe, le sel et des notes fruitées',finale:'Longue, fumée et légèrement saline',notes:"L'un des whiskies français les plus réputés, souvent comparé aux Islay écossais.",rating:0,prix:'',source:'',photo:''},
+  {nom:'Busnel – Whisky Normand Single Malt',sousType:'Whisky Single Malt normand',type:'Whisky',origine:'Normandie, France (Distillerie Busnel)',degre:'43 %',volume:'0,7 L',vieillissement:'Fûts de chêne français et américains dans les chais Busnel',nez:'Fruits mûrs, vanille, caramel, légère note boisée',bouche:'Ronde et douce, céréales maltées, caramel, fruits secs',finale:'Équilibrée, légèrement boisée et persistante',notes:'Produit par une distillerie normande historique, connue pour son Calvados.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Eddu Brocéliande – Whisky Pur Blé Noir',sousType:'Whisky Single Malt de blé noir',type:'Whisky',origine:'Bretagne, France (Distillerie des Menhirs)',degre:'43 %',volume:'0,7 L',vieillissement:'Fûts de chêne français, finition fûts de chêne de Brocéliande',nez:'Fruits secs, miel, vanille, épices boisées',bouche:'Ronde, céréalière, miel, fruits mûrs, notes toastées',finale:'Longue et douce, miel et épices',notes:'Unique whisky français élaboré à partir de blé noir (sarrasin), typique de Bretagne.',rating:0,prix:'',source:'',photo:''},
+];
+
+let editIdx=-1, pendingDeleteIdx=-1, pendingCardPhotoIdx=-1;
+let selectedPhotoUrl='', cardSelectedPhotoUrl='';
+let currentType='Rhum', currentRating=0, currentSourceUrl='', currentPhotoUrl='';
+let activeFilter='Tous';
+let driveFileId=null, tokenClient=null, accessToken=null;
+let saveTimeout=null;
+
+// ---- GOOGLE DRIVE ----
+function initGoogleApi() {
+  gapi.load('client', async () => {
+    await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (resp) => {
+        if (resp.error) { setSyncStatus('error','Erreur connexion'); return; }
+        accessToken = resp.access_token;
+        document.getElementById('btn-auth').textContent = 'Drive connecté ✓';
+        document.getElementById('btn-auth').style.borderColor = '#5CB85C';
+        document.getElementById('btn-auth').style.color = '#5CB85C';
+        setSyncStatus('syncing','Chargement…');
+        await loadFromDrive();
+      }
+    });
+  });
+}
+
+function handleAuth() {
+  if (accessToken) return;
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function setSyncStatus(state, label) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + state;
+  document.getElementById('sync-label').textContent = label;
+}
+
+async function loadFromDrive() {
+  try {
+    const res = await gapi.client.drive.files.list({
+      q: `name='${FILE_NAME}' and trashed=false`,
+      fields: 'files(id,name)',
+      spaces: 'drive'
+    });
+    if (res.result.files.length > 0) {
+      driveFileId = res.result.files[0].id;
+      const content = await gapi.client.drive.files.get({ fileId: driveFileId, alt: 'media' });
+      const data = JSON.parse(content.body);
+      if (Array.isArray(data) && data.length > 0) fiches = data;
+      setSyncStatus('ok', 'Drive synchronisé');
+      showToast('✓ Cave chargée depuis Google Drive');
+    } else {
+      setSyncStatus('ok', 'Drive connecté');
+      await saveToDrive();
+    }
+    renderFiches();
+    document.getElementById('count').textContent = fiches.length;
+  } catch(e) {
+    setSyncStatus('error', 'Erreur chargement');
+  }
+}
+
+async function saveToDrive() {
+  if (!accessToken) return;
+  setSyncStatus('syncing', 'Sauvegarde…');
+  try {
+    const content = JSON.stringify(fiches);
+    const blob = new Blob([content], { type: 'application/json' });
+    if (driveFileId) {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: content
+      });
+    } else {
+      const meta = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' })
+      });
+      const metaJson = await meta.json();
+      driveFileId = metaJson.id;
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: content
+      });
+    }
+    setSyncStatus('ok', 'Sauvegardé ✓');
+  } catch(e) {
+    setSyncStatus('error', 'Erreur sauvegarde');
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => saveToDrive(), 1500);
+}
+
+// ---- CLAUDE API ----
+async function fetchPhotoUrls(query) {
+  try {
+    const r = await fetch(CLAUDE_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:500,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:`Search for product bottle images of "${query}" spirits. Find 4 different direct image URLs (jpg/png/webp) from retailer or brand sites. Reply ONLY with a JSON array of URL strings, no markdown. Example: ["https://...","https://..."]`}]
+    })});
+    const d = await r.json(); let txt='';
+    for (const b of d.content) if (b.type==='text') txt+=b.text;
+    const m = txt.match(/\[[\s\S]*?\]/);
+    if (m) { const arr = JSON.parse(m[0]); return arr.filter(u=>typeof u==='string'&&u.startsWith('http')); }
+  } catch(e) {}
+  return [];
+}
+
+async function fetchFromUrl() {
+  const url = document.getElementById('url-input').value.trim(); if (!url) return;
+  const btn = document.getElementById('btn-fetch'), st = document.getElementById('fetch-status');
+  btn.disabled = true; st.className='fetch-status'; st.innerHTML='<span class="spinner"></span> Lecture de la page…';
+  try {
+    const r = await fetch(CLAUDE_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:1200,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:`Visite cette URL et extrais les infos du spiritueux. Réponds UNIQUEMENT avec un JSON valide sans markdown:\n{"nom":"","type":"Rhum|Whisky|Cognac|Gin|Calvados|Armagnac|Brandy|Mezcal|Autre","sousType":"","origine":"","degre":"","volume":"","vieillissement":"","nez":"","bouche":"","finale":"","notes":"","prix":"","photo":""}\nURL: ${url}`}]
+    })});
+    const d = await r.json(); let txt='';
+    for (const b of d.content) if (b.type==='text') txt+=b.text;
+    const m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
+    if (!m) throw new Error();
+    const p = JSON.parse(m[0]);
+    document.getElementById('f-nom').value=p.nom||'';
+    document.getElementById('f-soustype').value=p.sousType||'';
+    document.getElementById('f-origine').value=p.origine||'';
+    document.getElementById('f-degre').value=p.degre||'';
+    document.getElementById('f-volume').value=p.volume||'';
+    document.getElementById('f-vieillissement').value=p.vieillissement||'';
+    document.getElementById('f-nez').value=p.nez||'';
+    document.getElementById('f-bouche').value=p.bouche||'';
+    document.getElementById('f-finale').value=p.finale||'';
+    document.getElementById('f-notes').value=p.notes||'';
+    document.getElementById('f-prix').value=p.prix||'';
+    currentSourceUrl=url; currentPhotoUrl=p.photo||'';
+    document.getElementById('f-photo').value=currentPhotoUrl; updateFormPhoto();
+    const tk = Object.keys(typeIcons).includes(p.type)?p.type:'Autre';
+    document.querySelectorAll('.type-btn').forEach(b=>{const t=b.onclick?.toString().match(/'([^']+)'/)?.[1];b.classList.toggle('active',t===tk);});
+    currentType=tk;
+    st.className='fetch-status ok'; st.innerHTML='✓ Données importées'+(currentPhotoUrl?' · Photo ✓':'')+' — vérifiez avant d\'ajouter.';
+  } catch(e) { st.className='fetch-status err'; st.innerHTML='✗ Impossible d\'extraire les données.'; }
+  btn.disabled=false;
+}
+
+// ---- FORM ----
+function updateFormPhoto() {
+  const url = document.getElementById('f-photo').value.trim(); currentPhotoUrl=url;
+  const box = document.getElementById('form-photo-box');
+  box.innerHTML = url ? `<img src="${url}" style="width:100%;height:100%;object-fit:contain" onerror="this.parentElement.innerHTML='<span style=font-size:24px>❌</span>'">` : '<span style="font-size:24px">🍾</span>';
+}
+
+async function openPhotoModal() {
+  const nom = document.getElementById('f-nom').value.trim()||'spiritueux';
+  selectedPhotoUrl='';
+  document.getElementById('photo-query').textContent=nom;
+  document.getElementById('photo-results').innerHTML='';
+  document.getElementById('photo-search-status').className='fetch-status';
+  document.getElementById('photo-search-status').innerHTML='<span class="spinner"></span> Recherche…';
+  document.getElementById('modal-photo').classList.remove('hidden');
+  const urls = await fetchPhotoUrls(nom);
+  document.getElementById('photo-search-status').innerHTML='';
+  if (!urls.length) { document.getElementById('photo-search-status').className='fetch-status err'; document.getElementById('photo-search-status').innerHTML='Aucune image trouvée.'; return; }
+  document.getElementById('photo-results').innerHTML = urls.map(u=>`<div class="photo-opt" onclick="selPhoto(this,'${u}')"><img src="${u}" onerror="this.parentElement.style.display='none'"></div>`).join('');
+}
+function selPhoto(el,url){document.querySelectorAll('#photo-results .photo-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');selectedPhotoUrl=url;}
+function confirmPhoto(){if(selectedPhotoUrl){document.getElementById('f-photo').value=selectedPhotoUrl;updateFormPhoto();}closeModal('modal-photo');}
+
+function selType(el,t){document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');currentType=t;}
+function setRating(n){currentRating=n;document.querySelectorAll('#stars .star').forEach((s,i)=>s.classList.toggle('lit',i<n));}
+
+function clearForm(){
+  ['f-nom','f-soustype','f-origine','f-degre','f-volume','f-vieillissement','f-nez','f-bouche','f-finale','f-notes','f-prix','f-photo','url-input'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('fetch-status').innerHTML='';
+  currentRating=0; currentSourceUrl=''; currentPhotoUrl=''; setRating(0);
+  document.getElementById('form-photo-box').innerHTML='<span style="font-size:24px">🍾</span>';
+}
+
+function submitFiche(){
+  const nom=document.getElementById('f-nom').value.trim();
+  if(!nom){alert('Veuillez saisir au moins le nom.');return;}
+  const data={nom,type:currentType,sousType:document.getElementById('f-soustype').value,origine:document.getElementById('f-origine').value,degre:document.getElementById('f-degre').value,volume:document.getElementById('f-volume').value,vieillissement:document.getElementById('f-vieillissement').value,nez:document.getElementById('f-nez').value,bouche:document.getElementById('f-bouche').value,finale:document.getElementById('f-finale').value,notes:document.getElementById('f-notes').value,rating:currentRating,prix:document.getElementById('f-prix').value,source:currentSourceUrl,photo:document.getElementById('f-photo').value.trim()};
+  if(editIdx>=0){fiches[editIdx]=data;showToast('Fiche modifiée ✓');}
+  else{fiches.push(data);showToast('Fiche ajoutée ✓');const idx=fiches.length-1;if(!data.photo)fetchPhotoUrls(data.nom).then(urls=>{if(urls[0]&&fiches[idx]){fiches[idx].photo=urls[0];renderFiches();scheduleSave();}});}
+  editIdx=-1;document.getElementById('edit-banner').style.display='none';document.getElementById('btn-submit').textContent='Ajouter à mes fiches →';
+  document.getElementById('count').textContent=fiches.length;
+  clearForm(); scheduleSave(); showTab('preview');
+}
+
+function editFiche(i){
+  editIdx=i;const f=fiches[i];
+  document.getElementById('f-nom').value=f.nom||'';
+  document.getElementById('f-soustype').value=f.sousType||'';
+  document.getElementById('f-origine').value=f.origine||'';
+  document.getElementById('f-degre').value=f.degre||'';
+  document.getElementById('f-volume').value=f.volume||'';
+  document.getElementById('f-vieillissement').value=f.vieillissement||'';
+  document.getElementById('f-nez').value=f.nez||'';
+  document.getElementById('f-bouche').value=f.bouche||'';
+  document.getElementById('f-finale').value=f.finale||'';
+  document.getElementById('f-notes').value=f.notes||'';
+  document.getElementById('f-prix').value=f.prix||'';
+  document.getElementById('f-photo').value=f.photo||'';
+  currentSourceUrl=f.source||'';currentPhotoUrl=f.photo||'';currentRating=f.rating||0;currentType=f.type||'Rhum';
+  setRating(currentRating);
+  document.querySelectorAll('.type-btn').forEach(b=>{const t=b.onclick?.toString().match(/'([^']+)'/)?.[1];b.classList.toggle('active',t===currentType);});
+  updateFormPhoto();
+  document.getElementById('edit-name').textContent=f.nom;
+  document.getElementById('edit-banner').style.display='flex';
+  document.getElementById('btn-submit').textContent='Enregistrer les modifications ✓';
+  showTab('form'); window.scrollTo(0,0);
+}
+function cancelEdit(){editIdx=-1;document.getElementById('edit-banner').style.display='none';document.getElementById('btn-submit').textContent='Ajouter à mes fiches →';clearForm();}
+
+// ---- CARD PHOTO ----
+function openCardPhotoModal(i){
+  pendingCardPhotoIdx=i;cardSelectedPhotoUrl='';
+  document.getElementById('card-photo-url').value=fiches[i].photo||'';
+  document.getElementById('card-photo-results').innerHTML='';
+  document.getElementById('card-photo-status').innerHTML='';
+  document.getElementById('modal-card-photo').classList.remove('hidden');
+}
+async function searchCardPhoto(){
+  const idx=pendingCardPhotoIdx;if(idx<0)return;
+  cardSelectedPhotoUrl='';document.getElementById('card-photo-results').innerHTML='';
+  const st=document.getElementById('card-photo-status');st.className='fetch-status';st.innerHTML='<span class="spinner"></span> Recherche…';
+  const urls=await fetchPhotoUrls(fiches[idx].nom);st.innerHTML='';
+  if(!urls.length){st.className='fetch-status err';st.innerHTML='Aucune image trouvée.';return;}
+  document.getElementById('card-photo-results').innerHTML=urls.map(u=>`<div class="photo-opt" onclick="selCardPhoto(this,'${u}')"><img src="${u}" onerror="this.parentElement.style.display='none'"></div>`).join('');
+}
+function selCardPhoto(el,url){document.querySelectorAll('#card-photo-results .photo-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');cardSelectedPhotoUrl=url;}
+function confirmCardPhoto(){
+  const idx=pendingCardPhotoIdx;if(idx<0)return;
+  const url=cardSelectedPhotoUrl||document.getElementById('card-photo-url').value.trim();
+  if(url){fiches[idx].photo=url;renderFiches();scheduleSave();showToast('Photo mise à jour ✓');}
+  closeModal('modal-card-photo');
+}
+
+// ---- DELETE ----
+function openDeleteModal(i){pendingDeleteIdx=i;document.getElementById('delete-name').textContent=fiches[i].nom;document.getElementById('modal-delete').classList.remove('hidden');}
+function confirmDelete(){if(pendingDeleteIdx>=0){fiches.splice(pendingDeleteIdx,1);document.getElementById('count').textContent=fiches.length;renderFiches();scheduleSave();showToast('Fiche supprimée');}closeModal('modal-delete');}
+
+// ---- UI ----
+function showTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='form')||(i===1&&t==='preview')));
+  document.getElementById('panel-form').classList.toggle('active',t==='form');
+  document.getElementById('panel-preview').classList.toggle('active',t==='preview');
+  if(t==='preview')renderFiches();
+}
+function closeModal(id){document.getElementById(id).classList.add('hidden');}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+function buildFilters(){
+  const row=document.getElementById('filters-row');
+  const types=['Tous',...[...new Set(fiches.map(f=>f.type))].sort()];
+  const counts={};fiches.forEach(f=>{counts[f.type]=(counts[f.type]||0)+1;});
+  row.innerHTML=types.map(t=>{
+    const c=t==='Tous'?fiches.length:(counts[t]||0);
+    return`<button class="filter-btn${t===activeFilter?' active':''}" onclick="setFilter('${t}')">${t==='Tous'?'🗂':typeIcons[t]||'✨'} ${t} <span class="filter-count">${c}</span></button>`;
+  }).join('');
+}
+function setFilter(t){activeFilter=t;renderFiches();}
+
+function stars(n){if(!n)return'';return Array.from({length:5},(_,i)=>`<span style="color:${i<n?'#B8760A':'#DDD'};font-size:10px">★</span>`).join('');}
+function photoHtml(f){
+  if(f.photo)return`<img class="fiche-img" src="${f.photo}" alt="${f.nom}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="fiche-placeholder" style="display:none">${typeIcons[f.type]||'✨'}</div>`;
+  return`<div class="fiche-placeholder">${typeIcons[f.type]||'✨'}</div>`;
+}
+
+function renderFiches(){
+  buildFilters();
+  const c=document.getElementById('fiches-container');
+  const visible=activeFilter==='Tous'?fiches:fiches.filter(f=>f.type===activeFilter);
+  document.getElementById('count').textContent=fiches.length;
+  document.getElementById('preview-label').textContent=`${visible.length} fiche(s) affichée(s) sur ${fiches.length}`;
+  if(!visible.length){c.innerHTML='<div class="empty"><span class="empty-icon">🍾</span>Aucune fiche pour ce filtre.</div>';return;}
+  c.innerHTML=visible.map(f=>{
+    const i=fiches.indexOf(f);
+    return`<div class="fiche-card">
+      <div class="fiche-photo-col" onclick="openCardPhotoModal(${i})">
+        ${photoHtml(f)}
+        <div class="photo-overlay">✏️ Photo</div>
+      </div>
+      <div class="fiche-header">
+        <div class="fiche-icon">${typeIcons[f.type]||'✨'}</div>
+        <div class="fiche-title-block">
+          <div class="fiche-name">${f.nom}</div>
+          <div class="fiche-origin">${[f.origine,f.sousType].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div class="fiche-badge">${f.type}</div>
+          ${f.rating?`<div>${stars(f.rating)}</div>`:''}
+        </div>
+      </div>
+      <div class="fiche-body">
+        <div class="fiche-col">
+          ${f.degre?`<div class="fl">Degré</div><div class="fv">${f.degre}</div>`:''}
+          ${f.volume?`<div class="fl">Volume</div><div class="fv">${f.volume}</div>`:''}
+          ${f.prix?`<div class="fl">Prix</div><div class="fv">${f.prix}</div>`:''}
+          ${f.vieillissement?`<div class="fl">Vieillissement</div><div class="fv">${f.vieillissement}</div>`:''}
+        </div>
+        <div class="fiche-col">
+          ${f.nez?`<div class="fl">🌸 Nez</div><div class="fv">${f.nez}</div>`:''}
+          ${f.finale?`<div class="fl">⏱ Finale</div><div class="fv">${f.finale}</div>`:''}
+        </div>
+        <div class="fiche-col">
+          ${f.bouche?`<div class="fl">👅 Bouche</div><div class="fv">${f.bouche}</div>`:''}
+        </div>
+      </div>
+      ${f.notes?`<div class="fiche-note">📝 ${f.notes}</div>`:''}
+      ${f.source?`<div class="fiche-source">Source : <a href="${f.source}" target="_blank">${f.source.replace(/^https?:\/\//,'').split('/')[0]}</a></div>`:''}
+      <div class="fiche-actions-bar">
+        <button class="faction" onclick="editFiche(${i})">✏️ Modifier</button>
+        <button class="faction" onclick="openCardPhotoModal(${i})">📸 Photo</button>
+        <button class="faction del" onclick="openDeleteModal(${i})">🗑 Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadPhotosBackground(){
+  for(let i=0;i<fiches.length;i++){
+    if(!fiches[i].photo){
+      const urls=await fetchPhotoUrls(fiches[i].nom);
+      if(urls[0])fiches[i].photo=urls[0];
+      renderFiches();
+    }
+  }
+  scheduleSave();
+}
+
+// ---- INIT ----
+window.onload = () => {
+  renderFiches();
+  initGoogleApi();
+  loadPhotosBackground();
+};
+</script>
+</body>
+</html>
