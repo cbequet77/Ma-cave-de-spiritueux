@@ -100,6 +100,10 @@
   .photo-right { flex: 1; display: flex; flex-direction: column; gap: 6px; }
   .btn-photo-search { padding: 7px 10px; border: 0.5px solid #DDD; border-radius: 8px; background: transparent; font-family: 'Lato', sans-serif; font-size: 12px; color: #888; cursor: pointer; text-align: left; }
   .btn-photo-search:hover { border-color: var(--brown-mid); color: var(--brown-mid); }
+  .btn-photo-browse { padding: 7px 10px; border: 0.5px solid var(--brown-light); border-radius: 8px; background: var(--cream-dark); font-family: 'Lato', sans-serif; font-size: 12px; color: var(--brown-mid); cursor: pointer; text-align: left; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .btn-photo-browse:hover { border-color: var(--brown-mid); background: var(--cream-mid); }
+  .upload-progress { font-size: 11px; color: var(--brown-mid); display: flex; align-items: center; gap: 5px; min-height: 16px; }
+  #file-input-hidden { display: none; }
 
   .rating-row { display: flex; gap: 3px; margin-top: 2px; }
   .star { font-size: 20px; cursor: pointer; color: #DDD; transition: color .1s; }
@@ -268,8 +272,11 @@
           <div class="photo-box" id="form-photo-box"><span style="font-size:24px">🍾</span></div>
           <div class="photo-right">
             <input id="f-photo" type="text" placeholder="URL de l'image" oninput="updateFormPhoto()">
+            <button class="btn-photo-browse" onclick="document.getElementById('file-input-hidden').click()">📁 Parcourir depuis mon appareil</button>
             <button class="btn-photo-search" onclick="openPhotoModal()">🔍 Rechercher automatiquement</button>
+            <div class="upload-progress" id="upload-progress"></div>
           </div>
+          <input type="file" id="file-input-hidden" accept="image/*" onchange="uploadPhotoToGitHub(this)">
         </div>
       </div>
     </div>
@@ -337,6 +344,10 @@
 
 <script>
 const CLIENT_ID = '1070727212660-k27jsunjgfhc3ht6fns7smrp3k9np50g.apps.googleusercontent.com';
+const GITHUB_USER = 'cbequet77';
+const GITHUB_REPO = 'Ma-cave-de-spiritueux';
+const GITHUB_BRANCH = 'main';
+const GITHUB_PHOTOS_PATH = 'photos';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const FILE_NAME = 'ma-cave-fiches.json';
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
@@ -364,6 +375,74 @@ let currentType='Rhum', currentRating=0, currentSourceUrl='', currentPhotoUrl=''
 let activeFilter='Tous';
 let driveFileId=null, tokenClient=null, accessToken=null;
 let saveTimeout=null;
+
+// ---- GITHUB PHOTO UPLOAD ----
+function getGithubToken() {
+  return localStorage.getItem('github_token_macave') || '';
+}
+
+function setGithubToken(t) {
+  localStorage.setItem('github_token_macave', t);
+}
+
+async function uploadPhotoToGitHub(input) {
+  const file = input.files[0];
+  if (!file) return;
+  let token = getGithubToken();
+  if (!token) {
+    token = prompt('Entrez votre token GitHub (ghp_...) pour uploader la photo :');
+    if (!token) return;
+    setGithubToken(token);
+  }
+  const prog = document.getElementById('upload-progress');
+  prog.innerHTML = '<span class="spinner"></span> Upload en cours…';
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const base64 = e.target.result.split(',')[1];
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+      const path = `${GITHUB_PHOTOS_PATH}/${Date.now()}_${safeName}`;
+      const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${path}`;
+
+      // Check if file exists first
+      let sha = null;
+      try {
+        const check = await fetch(apiUrl, { headers: { 'Authorization': `token ${token}` } });
+        if (check.ok) { const j = await check.json(); sha = j.sha; }
+      } catch(e) {}
+
+      const body = { message: `Photo ajoutée : ${safeName}`, content: base64, branch: GITHUB_BRANCH };
+      if (sha) body.sha = sha;
+
+      const resp = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        if (err.message && err.message.includes('Bad credentials')) {
+          localStorage.removeItem('github_token_macave');
+          prog.innerHTML = '<span style="color:#A32D2D">✗ Token invalide — réessayez</span>';
+          return;
+        }
+        throw new Error(err.message);
+      }
+
+      const photoUrl = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${path}`;
+      document.getElementById('f-photo').value = photoUrl;
+      updateFormPhoto();
+      prog.innerHTML = '<span style="color:#3B6D11">✓ Photo uploadée avec succès</span>';
+      setTimeout(() => prog.innerHTML = '', 3000);
+    } catch(err) {
+      prog.innerHTML = `<span style="color:#A32D2D">✗ Erreur : ${err.message}</span>`;
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
 
 // ---- GOOGLE DRIVE ----
 function initGoogleApi() {
