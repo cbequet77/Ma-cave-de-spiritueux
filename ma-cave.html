@@ -316,8 +316,11 @@
 <div class="overlay hidden" id="modal-card-photo">
   <div class="modal">
     <div class="modal-title">📸 Modifier la photo</div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">Colle une URL ou recherche automatiquement.</div>
-    <input id="card-photo-url" type="text" placeholder="https://... URL de l'image" style="width:100%;font-family:Lato,sans-serif;font-size:13px;padding:8px 10px;border:0.5px solid #DDD;border-radius:8px;outline:none;margin-bottom:8px">
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Parcourez votre appareil, collez une URL ou recherchez automatiquement.</div>
+    <button class="btn-photo-browse" style="width:100%;margin-bottom:8px;justify-content:center" onclick="document.getElementById('card-file-input').click()">📁 Parcourir depuis mon appareil</button>
+    <input type="file" id="card-file-input" accept="image/*" style="display:none" onchange="uploadCardPhotoToGitHub(this)">
+    <div id="card-upload-progress" class="upload-progress" style="margin-bottom:6px"></div>
+    <input id="card-photo-url" type="text" placeholder="https://... ou URL de l'image" style="width:100%;font-family:Lato,sans-serif;font-size:13px;padding:8px 10px;border:0.5px solid #DDD;border-radius:8px;outline:none;margin-bottom:8px">
     <button class="btn-photo-search" onclick="searchCardPhoto()">🔍 Rechercher automatiquement</button>
     <div id="card-photo-status" class="fetch-status" style="margin-top:6px"></div>
     <div class="photo-grid" id="card-photo-results" style="margin-top:8px"></div>
@@ -674,6 +677,63 @@ async function searchCardPhoto(){
   document.getElementById('card-photo-results').innerHTML=urls.map(u=>`<div class="photo-opt" onclick="selCardPhoto(this,'${u}')"><img src="${u}" onerror="this.parentElement.style.display='none'"></div>`).join('');
 }
 function selCardPhoto(el,url){document.querySelectorAll('#card-photo-results .photo-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');cardSelectedPhotoUrl=url;}
+
+async function uploadCardPhotoToGitHub(input) {
+  const file = input.files[0];
+  if (!file) return;
+  let token = getGithubToken();
+  if (!token) {
+    token = prompt('Entrez votre token GitHub (ghp_...) pour uploader la photo :');
+    if (!token) return;
+    setGithubToken(token);
+  }
+  const prog = document.getElementById('card-upload-progress');
+  prog.innerHTML = '<span class="spinner"></span> Upload en cours…';
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const base64 = e.target.result.split(',')[1];
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+      const path = `${GITHUB_PHOTOS_PATH}/${Date.now()}_${safeName}`;
+      const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${path}`;
+
+      let sha = null;
+      try {
+        const check = await fetch(apiUrl, { headers: { 'Authorization': `token ${token}` } });
+        if (check.ok) { const j = await check.json(); sha = j.sha; }
+      } catch(e) {}
+
+      const body = { message: `Photo ajoutée : ${safeName}`, content: base64, branch: GITHUB_BRANCH };
+      if (sha) body.sha = sha;
+
+      const resp = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        if (err.message && err.message.includes('Bad credentials')) {
+          localStorage.removeItem('github_token_macave');
+          prog.innerHTML = '<span style="color:#A32D2D">✗ Token invalide — réessayez</span>';
+          return;
+        }
+        throw new Error(err.message);
+      }
+
+      const photoUrl = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${path}`;
+      document.getElementById('card-photo-url').value = photoUrl;
+      cardSelectedPhotoUrl = photoUrl;
+      prog.innerHTML = '<span style="color:#3B6D11">✓ Photo uploadée — cliquez Appliquer</span>';
+    } catch(err) {
+      prog.innerHTML = `<span style="color:#A32D2D">✗ Erreur : ${err.message}</span>`;
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
 function confirmCardPhoto(){
   const idx=pendingCardPhotoIdx;if(idx<0)return;
   const url=cardSelectedPhotoUrl||document.getElementById('card-photo-url').value.trim();
