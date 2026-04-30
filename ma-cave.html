@@ -106,6 +106,10 @@
   #file-input-hidden { display: none; }
 
   .rating-row { display: flex; gap: 3px; margin-top: 2px; }
+  .stock-select { font-family: 'Lato', sans-serif; font-size: 12px; padding: 4px 8px; border-radius: 20px; border: 1.5px solid #DDD; cursor: pointer; font-weight: 700; outline: none; background: white; transition: all .2s; }
+  .stock-select.en-stock { border-color: #5CB85C; color: #3B6D11; background: #F0FFF0; }
+  .stock-select.epuise { border-color: #D9534F; color: #A32D2D; background: #FFF5F5; }
+  .stock-select.a-racheter { border-color: #F5A623; color: #8B5E00; background: #FFFBF0; }
   .star { font-size: 20px; cursor: pointer; color: #DDD; transition: color .1s; }
   .star.lit { color: var(--gold); }
 
@@ -266,6 +270,13 @@
       <div class="fg full"><label>Notes & particularités</label><textarea id="f-notes"></textarea></div>
       <div class="fg"><label>Note personnelle</label><div class="rating-row" id="stars"><span class="star" onclick="setRating(1)">★</span><span class="star" onclick="setRating(2)">★</span><span class="star" onclick="setRating(3)">★</span><span class="star" onclick="setRating(4)">★</span><span class="star" onclick="setRating(5)">★</span></div></div>
       <div class="fg"><label>Prix indicatif</label><input id="f-prix" type="text" placeholder="ex. 45 €"></div>
+      <div class="fg"><label>Statut du stock</label>
+        <select id="f-stock" class="stock-select en-stock" onchange="updateStockStyle(this)">
+          <option value="en-stock">✅ En stock</option>
+          <option value="epuise">❌ Épuisé</option>
+          <option value="a-racheter">🛒 À racheter</option>
+        </select>
+      </div>
       <div class="fg full">
         <label>Photo de la bouteille</label>
         <div class="photo-wrap">
@@ -618,7 +629,7 @@ function selType(el,t){document.querySelectorAll('.type-btn').forEach(b=>b.class
 function setRating(n){currentRating=n;document.querySelectorAll('#stars .star').forEach((s,i)=>s.classList.toggle('lit',i<n));}
 
 function clearForm(){
-  ['f-nom','f-soustype','f-origine','f-degre','f-volume','f-vieillissement','f-nez','f-bouche','f-finale','f-notes','f-prix','f-photo','url-input'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-nom','f-soustype','f-origine','f-degre','f-volume','f-vieillissement','f-nez','f-bouche','f-finale','f-notes','f-prix','f-photo','url-input'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const fs=document.getElementById('f-stock');if(fs){fs.value='en-stock';updateStockStyle(fs);};
   document.getElementById('fetch-status').innerHTML='';
   currentRating=0; currentSourceUrl=''; currentPhotoUrl=''; setRating(0);
   document.getElementById('form-photo-box').innerHTML='<span style="font-size:24px">🍾</span>';
@@ -627,7 +638,7 @@ function clearForm(){
 function submitFiche(){
   const nom=document.getElementById('f-nom').value.trim();
   if(!nom){alert('Veuillez saisir au moins le nom.');return;}
-  const data={nom,type:currentType,sousType:document.getElementById('f-soustype').value,origine:document.getElementById('f-origine').value,degre:document.getElementById('f-degre').value,volume:document.getElementById('f-volume').value,vieillissement:document.getElementById('f-vieillissement').value,nez:document.getElementById('f-nez').value,bouche:document.getElementById('f-bouche').value,finale:document.getElementById('f-finale').value,notes:document.getElementById('f-notes').value,rating:currentRating,prix:document.getElementById('f-prix').value,source:currentSourceUrl,photo:document.getElementById('f-photo').value.trim()};
+  const data={nom,type:currentType,sousType:document.getElementById('f-soustype').value,origine:document.getElementById('f-origine').value,degre:document.getElementById('f-degre').value,volume:document.getElementById('f-volume').value,vieillissement:document.getElementById('f-vieillissement').value,nez:document.getElementById('f-nez').value,bouche:document.getElementById('f-bouche').value,finale:document.getElementById('f-finale').value,notes:document.getElementById('f-notes').value,rating:currentRating,prix:document.getElementById('f-prix').value,stock:document.getElementById('f-stock').value||'en-stock',source:currentSourceUrl,photo:document.getElementById('f-photo').value.trim()};
   if(editIdx>=0){fiches[editIdx]=data;showToast('Fiche modifiée ✓');}
   else{fiches.push(data);showToast('Fiche ajoutée ✓');const idx=fiches.length-1;if(!data.photo)fetchPhotoUrls(data.nom).then(urls=>{if(urls[0]&&fiches[idx]){fiches[idx].photo=urls[0];renderFiches();scheduleSave();}});}
   editIdx=-1;document.getElementById('edit-banner').style.display='none';document.getElementById('btn-submit').textContent='Ajouter à mes fiches →';
@@ -649,6 +660,7 @@ function editFiche(i){
   document.getElementById('f-notes').value=f.notes||'';
   document.getElementById('f-prix').value=f.prix||'';
   document.getElementById('f-photo').value=f.photo||'';
+  const fstock=document.getElementById('f-stock');if(fstock){fstock.value=f.stock||'en-stock';updateStockStyle(fstock);}
   currentSourceUrl=f.source||'';currentPhotoUrl=f.photo||'';currentRating=f.rating||0;currentType=f.type||'Rhum';
   setRating(currentRating);
   document.querySelectorAll('.type-btn').forEach(b=>{const t=b.onclick?.toString().match(/'([^']+)'/)?.[1];b.classList.toggle('active',t===currentType);});
@@ -755,6 +767,29 @@ function showTab(t){
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
+function updateStockStyle(sel) {
+  sel.className = 'stock-select ' + sel.value;
+}
+
+function stockBadge(stock) {
+  const map = {
+    'en-stock':  { label: '✅ En stock',   cls: 'en-stock' },
+    'epuise':    { label: '❌ Épuisé',     cls: 'epuise' },
+    'a-racheter':{ label: '🛒 À racheter', cls: 'a-racheter' }
+  };
+  const s = map[stock] || map['en-stock'];
+  return `<select class="stock-select ${s.cls}" onchange="changeStock(event,FICHE_IDX)" style="font-size:11px;padding:3px 8px">${
+    Object.entries(map).map(([v,o])=>`<option value="${v}"${v===stock?' selected':''}>${o.label}</option>`).join('')
+  }</select>`;
+}
+
+function changeStock(event, i) {
+  fiches[i].stock = event.target.value;
+  event.target.className = 'stock-select ' + event.target.value;
+  scheduleSave();
+  showToast('Statut mis à jour ✓');
+}
+
 function buildFilters(){
   const row=document.getElementById('filters-row');
   const types=['Tous',...[...new Set(fiches.map(f=>f.type))].sort()];
@@ -814,10 +849,13 @@ function renderFiches(){
       </div>
       ${f.notes?`<div class="fiche-note">📝 ${f.notes}</div>`:''}
       ${f.source?`<div class="fiche-source">Source : <a href="${f.source}" target="_blank">${f.source.replace(/^https?:\/\//,'').split('/')[0]}</a></div>`:''}
-      <div class="fiche-actions-bar">
-        <button class="faction" onclick="editFiche(${i})">✏️ Modifier</button>
-        <button class="faction" onclick="openCardPhotoModal(${i})">📸 Photo</button>
-        <button class="faction del" onclick="openDeleteModal(${i})">🗑 Supprimer</button>
+      <div class="fiche-actions-bar" style="justify-content:space-between;align-items:center">
+        <div>${stockBadge(f.stock||'en-stock').replace('FICHE_IDX',i)}</div>
+        <div style="display:flex;gap:4px">
+          <button class="faction" onclick="editFiche(${i})">✏️ Modifier</button>
+          <button class="faction" onclick="openCardPhotoModal(${i})">📸 Photo</button>
+          <button class="faction del" onclick="openDeleteModal(${i})">🗑 Supprimer</button>
+        </div>
       </div>
     </div>`;
   }).join('');
