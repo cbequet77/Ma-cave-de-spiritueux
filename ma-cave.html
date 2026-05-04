@@ -469,9 +469,11 @@ async function uploadPhotoToGitHub(input) {
 }
 
 // ---- GOOGLE DRIVE ----
-function initGoogleApi() {
-  gapi.load('client', async () => {
-    await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+let gapiReady = false;
+let gsiReady = false;
+
+function checkBothReady() {
+  if (gapiReady && gsiReady) {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
@@ -485,11 +487,49 @@ function initGoogleApi() {
         await loadFromDrive();
       }
     });
+    document.getElementById('btn-auth').disabled = false;
+  }
+}
+
+function initGoogleApi() {
+  document.getElementById('btn-auth').disabled = true;
+  // Load GAPI client
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+      gapiReady = true;
+      checkBothReady();
+    } catch(e) {
+      setSyncStatus('error', 'Erreur init Google');
+    }
   });
+  // GSI (Google Sign-In) is loaded via script tag - check if already ready
+  if (typeof google !== 'undefined' && google.accounts) {
+    gsiReady = true;
+    checkBothReady();
+  } else {
+    // Wait for GSI script to load
+    const gsiCheck = setInterval(() => {
+      if (typeof google !== 'undefined' && google.accounts) {
+        clearInterval(gsiCheck);
+        gsiReady = true;
+        checkBothReady();
+      }
+    }, 100);
+  }
 }
 
 function handleAuth() {
   if (accessToken) return;
+  if (!tokenClient) {
+    setSyncStatus('error', 'Chargement en cours…');
+    // Retry after a short delay
+    setTimeout(() => {
+      if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
+      else setSyncStatus('error', 'Rechargez la page');
+    }, 1500);
+    return;
+  }
   tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
