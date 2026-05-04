@@ -5,6 +5,52 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ma Cave – Fiches de Dégustation</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<script>
+function onGapiLoad() {
+  if (typeof gapi === 'undefined') return;
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+      window._gapiReady = true;
+      window._checkBothReady();
+    } catch(e) { console.error('GAPI init error', e); }
+  });
+}
+function onGsiLoad() {
+  window._gsiReady = true;
+  window._checkBothReady();
+}
+window._gapiReady = false;
+window._gsiReady = false;
+window._checkBothReady = function() {
+  if (!window._gapiReady || !window._gsiReady) return;
+  try {
+    window._tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: '1070727212660-k27jsunjgfhc3ht6fns7smrp3k9np50g.apps.googleusercontent.com',
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: async (resp) => {
+        if (resp.error) { document.getElementById('sync-label').textContent = 'Erreur connexion'; return; }
+        window._accessToken = resp.access_token;
+        const btn = document.getElementById('btn-auth');
+        btn.textContent = 'Drive connecté ✓';
+        btn.style.borderColor = '#5CB85C';
+        btn.style.color = '#5CB85C';
+        document.getElementById('sync-dot').className = 'sync-dot syncing';
+        document.getElementById('sync-label').textContent = 'Chargement…';
+        if (typeof loadFromDrive === 'function') await loadFromDrive();
+      }
+    });
+  } catch(e) { console.error('OAuth init error', e); }
+};
+function handleAuth() {
+  if (window._accessToken) return;
+  if (!window._tokenClient) {
+    alert('Les API Google ne sont pas encore chargées. Attendez quelques secondes et réessayez.');
+    return;
+  }
+  window._tokenClient.requestAccessToken({ prompt: '' });
+}
+</script>
 <script src="https://apis.google.com/js/api.js" onload="onGapiLoad()"></script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="onGsiLoad()"></script>
 <style>
@@ -390,14 +436,14 @@ let fiches = [
   {nom:'Eddu Brocéliande – Whisky Pur Blé Noir',sousType:'Whisky Single Malt de blé noir',type:'Whisky',origine:'Bretagne, France (Distillerie des Menhirs)',degre:'43 %',volume:'0,7 L',vieillissement:'Fûts de chêne français, finition fûts de chêne de Brocéliande',nez:'Fruits secs, miel, vanille, épices boisées',bouche:'Ronde, céréalière, miel, fruits mûrs, notes toastées',finale:'Longue et douce, miel et épices',notes:'Unique whisky français élaboré à partir de blé noir (sarrasin), typique de Bretagne.',rating:0,prix:'',source:'',photo:''},
   {nom:'Santa Teresa 1796 – Speyside Whisky Cask Finish',sousType:'Rhum vieux / Solera édition spéciale',type:'Rhum',origine:'Venezuela',degre:'40 %',volume:'0,7 L',vieillissement:'Méthode Solera, puis finition minimum 13 mois en fûts de whisky du Speyside',nez:'Vanille, caramel, fruits secs, légère touche maltée et boisée',bouche:'Ronde et équilibrée, caramel, miel, fruits secs, influence subtile de whisky',finale:'Moyenne à longue, douce, légèrement boisée avec une pointe maltée',notes:'Édition limitée, profil hybride rhum / whisky, plus sec et boisé que le Santa Teresa classique.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
   {nom:'A1710 – Bête à Feu',sousType:'Rhum blanc agricole',type:'Rhum',origine:'Martinique – Habitation du Simon, Le François',degre:'50,9 %',volume:'0,7 L',vieillissement:'Non vieilli – pur jus de canne, fermentation et distillation artisanales',nez:'Très expressif, canne fraîche, agrumes, notes florales, légère touche poivrée',bouche:'Vive et puissante, canne, citron vert, épices, belle fraîcheur végétale',finale:'Longue, sèche et intense, marquée par la canne et les épices',notes:'Rhum blanc de caractère, profil pur et explosif, adapté à la dégustation ou aux cocktails premium.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
-  {nom:'Bénédictine D.O.M',sousType:'Liqueur de plantes',type:'Autre',origine:'France – Fécamp, Normandie',degre:'40 %',volume:'0,7 L',vieillissement:'Recette secrète de 27 plantes et épices, distillées puis vieillies en fûts de chêne',nez:'Complexe et aromatique, miel, herbes, agrumes, épices douces',bouche:'Riche et onctueuse, miel, écorces d'orange, plantes aromatiques, épices',finale:'Longue et chaleureuse, légèrement épicée et herbacée',notes:'Liqueur emblématique française, très polyvalente : pure, en cocktail ou en digestif.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
+  {nom:'Bénédictine D.O.M',sousType:'Liqueur de plantes',type:'Autre',origine:'France – Fécamp, Normandie',degre:'40 %',volume:'0,7 L',vieillissement:'Recette secrète de 27 plantes et épices, distillées puis vieillies en fûts de chêne',nez:'Complexe et aromatique, miel, herbes, agrumes, épices douces',bouche:'Riche et onctueuse, miel, écorces d\'orange, plantes aromatiques, épices',finale:'Longue et chaleureuse, légèrement épicée et herbacée',notes:'Liqueur emblématique française, très polyvalente : pure, en cocktail ou en digestif.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
 ];
 
 let editIdx=-1, pendingDeleteIdx=-1, pendingCardPhotoIdx=-1;
 let selectedPhotoUrl='', cardSelectedPhotoUrl='';
 let currentType='Rhum', currentRating=0, currentSourceUrl='', currentPhotoUrl='';
 let activeFilter='Tous';
-let driveFileId=null, tokenClient=null, accessToken=null;
+let driveFileId=null;
 let saveTimeout=null;
 
 // ---- GITHUB PHOTO UPLOAD ----
@@ -469,67 +515,11 @@ async function uploadPhotoToGitHub(input) {
 }
 
 // ---- GOOGLE DRIVE ----
-let gapiReady = false;
-let gsiReady = false;
 
-function onGapiLoad() {
-  gapi.load('client', async () => {
-    try {
-      await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
-      gapiReady = true;
-      checkBothReady();
-    } catch(e) {
-      setSyncStatus('error', 'Erreur chargement Google');
-    }
-  });
-}
-
-function onGsiLoad() {
-  gsiReady = true;
-  checkBothReady();
-}
-
-function checkBothReady() {
-  if (!gapiReady || !gsiReady) return;
-  try {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: async (resp) => {
-        if (resp.error) { setSyncStatus('error', 'Erreur connexion'); return; }
-        accessToken = resp.access_token;
-        const btn = document.getElementById('btn-auth');
-        btn.textContent = 'Drive connecté ✓';
-        btn.style.borderColor = '#5CB85C';
-        btn.style.color = '#5CB85C';
-        setSyncStatus('syncing', 'Chargement…');
-        await loadFromDrive();
-      }
-    });
-    setSyncStatus('', 'Prêt');
-  } catch(e) {
-    setSyncStatus('error', 'Erreur init OAuth');
-  }
-}
 
 function initGoogleApi() {
-  // onGapiLoad and onGsiLoad are called by script onload attributes
-  // This is just a fallback in case scripts were already loaded
-  if (typeof gapi !== 'undefined') onGapiLoad();
-  if (typeof google !== 'undefined' && google.accounts) onGsiLoad();
-}
-
-function handleAuth() {
-  if (accessToken) return;
-  if (!tokenClient) {
-    setSyncStatus('error', 'API Google non chargée — rechargez la page');
-    return;
-  }
-  try {
-    tokenClient.requestAccessToken({ prompt: '' });
-  } catch(e) {
-    setSyncStatus('error', 'Erreur connexion : ' + e.message);
-  }
+  // Auth is handled by onGapiLoad/onGsiLoad in the head script
+  // Nothing to do here
 }
 
 function setSyncStatus(state, label) {
@@ -563,7 +553,7 @@ async function loadFromDrive() {
 }
 
 async function saveToDrive() {
-  if (!accessToken) return;
+  if (!window._accessToken) return;
   setSyncStatus('syncing', 'Sauvegarde…');
   try {
     const content = JSON.stringify(fiches);
@@ -571,20 +561,20 @@ async function saveToDrive() {
     if (driveFileId) {
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${window._accessToken}`, 'Content-Type': 'application/json' },
         body: content
       });
     } else {
       const meta = await fetch('https://www.googleapis.com/drive/v3/files', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${window._accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' })
       });
       const metaJson = await meta.json();
       driveFileId = metaJson.id;
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${window._accessToken}`, 'Content-Type': 'application/json' },
         body: content
       });
     }
