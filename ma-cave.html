@@ -233,10 +233,17 @@
     </div>
 
     <div class="url-section">
-      <div class="section-label">🔗 Importer depuis un lien produit</div>
+      <div class="section-label">🔍 Importer automatiquement</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px">Tape le nom, colle une URL <em>ou</em> prends une photo de l'étiquette.</div>
       <div class="url-row">
-        <input class="url-input" id="url-input" type="url" placeholder="https://www.whisky.fr/produit/...">
-        <button class="btn-analyze" id="btn-fetch" onclick="fetchFromUrl()">Analyser</button>
+        <input class="url-input" id="url-input" type="text" placeholder="ex. Plantation XO 20th Anniversary ou https://...">
+        <button class="btn-analyze" id="btn-fetch" onclick="fetchFromUrl()">Rechercher</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-photo-browse" style="width:100%;justify-content:center;padding:9px" onclick="document.getElementById('label-scan-input').click()">
+          📷 Analyser une photo de l'étiquette
+        </button>
+        <input type="file" id="label-scan-input" accept="image/*" capture="environment" style="display:none" onchange="analyzeBottlePhoto(this)">
       </div>
       <div class="fetch-status" id="fetch-status"></div>
     </div>
@@ -381,6 +388,9 @@ let fiches = [
   {nom:'Kornog – Whisky Single Malt Tourbé',sousType:'Whisky Single Malt tourbé',type:'Whisky',origine:'Bretagne, France (Celtic Whisky Distillerie)',degre:'46 %',volume:'0,7 L',vieillissement:'Fûts de chêne ayant contenu du sherry et du bourbon',nez:'Notes marines, tourbe iodée, agrumes, vanille',bouche:'Puissante, équilibrée entre la tourbe, le sel et des notes fruitées',finale:'Longue, fumée et légèrement saline',notes:"L'un des whiskies français les plus réputés, souvent comparé aux Islay écossais.",rating:0,prix:'',source:'',photo:''},
   {nom:'Busnel – Whisky Normand Single Malt',sousType:'Whisky Single Malt normand',type:'Whisky',origine:'Normandie, France (Distillerie Busnel)',degre:'43 %',volume:'0,7 L',vieillissement:'Fûts de chêne français et américains dans les chais Busnel',nez:'Fruits mûrs, vanille, caramel, légère note boisée',bouche:'Ronde et douce, céréales maltées, caramel, fruits secs',finale:'Équilibrée, légèrement boisée et persistante',notes:'Produit par une distillerie normande historique, connue pour son Calvados.',rating:0,prix:'',source:'',photo:''},
   {nom:'Eddu Brocéliande – Whisky Pur Blé Noir',sousType:'Whisky Single Malt de blé noir',type:'Whisky',origine:'Bretagne, France (Distillerie des Menhirs)',degre:'43 %',volume:'0,7 L',vieillissement:'Fûts de chêne français, finition fûts de chêne de Brocéliande',nez:'Fruits secs, miel, vanille, épices boisées',bouche:'Ronde, céréalière, miel, fruits mûrs, notes toastées',finale:'Longue et douce, miel et épices',notes:'Unique whisky français élaboré à partir de blé noir (sarrasin), typique de Bretagne.',rating:0,prix:'',source:'',photo:''},
+  {nom:'Santa Teresa 1796 – Speyside Whisky Cask Finish',sousType:'Rhum vieux / Solera édition spéciale',type:'Rhum',origine:'Venezuela',degre:'40 %',volume:'0,7 L',vieillissement:'Méthode Solera, puis finition minimum 13 mois en fûts de whisky du Speyside',nez:'Vanille, caramel, fruits secs, légère touche maltée et boisée',bouche:'Ronde et équilibrée, caramel, miel, fruits secs, influence subtile de whisky',finale:'Moyenne à longue, douce, légèrement boisée avec une pointe maltée',notes:'Édition limitée, profil hybride rhum / whisky, plus sec et boisé que le Santa Teresa classique.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
+  {nom:'A1710 – Bête à Feu',sousType:'Rhum blanc agricole',type:'Rhum',origine:'Martinique – Habitation du Simon, Le François',degre:'50,9 %',volume:'0,7 L',vieillissement:'Non vieilli – pur jus de canne, fermentation et distillation artisanales',nez:'Très expressif, canne fraîche, agrumes, notes florales, légère touche poivrée',bouche:'Vive et puissante, canne, citron vert, épices, belle fraîcheur végétale',finale:'Longue, sèche et intense, marquée par la canne et les épices',notes:'Rhum blanc de caractère, profil pur et explosif, adapté à la dégustation ou aux cocktails premium.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
+  {nom:'Bénédictine D.O.M',sousType:'Liqueur de plantes',type:'Autre',origine:'France – Fécamp, Normandie',degre:'40 %',volume:'0,7 L',vieillissement:'Recette secrète de 27 plantes et épices, distillées puis vieillies en fûts de chêne',nez:'Complexe et aromatique, miel, herbes, agrumes, épices douces',bouche:'Riche et onctueuse, miel, écorces d'orange, plantes aromatiques, épices',finale:'Longue et chaleureuse, légèrement épicée et herbacée',notes:'Liqueur emblématique française, très polyvalente : pure, en cocktail ou en digestif.',rating:0,prix:'',stock:'en-stock',source:'',photo:''},
 ];
 
 let editIdx=-1, pendingDeleteIdx=-1, pendingCardPhotoIdx=-1;
@@ -566,21 +576,121 @@ async function fetchPhotoUrls(query) {
   return [];
 }
 
+async function analyzeBottlePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const st = document.getElementById('fetch-status');
+  st.className = 'fetch-status';
+  st.innerHTML = '<span class="spinner"></span> Analyse de l\'étiquette en cours…';
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const base64 = e.target.result.split(',')[1];
+      const mediaType = file.type || 'image/jpeg';
+
+      const r = await fetch(CLAUDE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: mediaType, data: base64 }
+              },
+              {
+                type: 'text',
+                text: `Tu es expert en spiritueux. Analyse cette photo d'une bouteille ou étiquette et extrais toutes les informations visibles.
+Complète avec tes connaissances sur ce produit si tu le reconnais (notes de dégustation, vieillissement, origine, etc.).
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown ni texte autour :
+{"nom":"","type":"Rhum|Whisky|Cognac|Gin|Calvados|Armagnac|Brandy|Mezcal|Autre","sousType":"","origine":"","degre":"","volume":"","vieillissement":"","nez":"","bouche":"","finale":"","notes":"","prix":""}`
+              }
+            ]
+          }]
+        })
+      });
+
+      if (!r.ok) throw new Error('API error ' + r.status);
+      const d = await r.json();
+      let txt = '';
+      for (const b of d.content) if (b.type === 'text') txt += b.text;
+      const m = txt.replace(/\`\`\`json|\`\`\`/g, '').trim().match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('Pas de JSON');
+      const p = JSON.parse(m[0]);
+      if (!p.nom) throw new Error('Produit non identifié');
+
+      document.getElementById('f-nom').value = p.nom || '';
+      document.getElementById('f-soustype').value = p.sousType || '';
+      document.getElementById('f-origine').value = p.origine || '';
+      document.getElementById('f-degre').value = p.degre || '';
+      document.getElementById('f-volume').value = p.volume || '';
+      document.getElementById('f-vieillissement').value = p.vieillissement || '';
+      document.getElementById('f-nez').value = p.nez || '';
+      document.getElementById('f-bouche').value = p.bouche || '';
+      document.getElementById('f-finale').value = p.finale || '';
+      document.getElementById('f-notes').value = p.notes || '';
+      document.getElementById('f-prix').value = p.prix || '';
+      currentSourceUrl = ''; currentPhotoUrl = '';
+      document.getElementById('f-photo').value = ''; updateFormPhoto();
+      const tk = Object.keys(typeIcons).includes(p.type) ? p.type : 'Autre';
+      document.querySelectorAll('.type-btn').forEach(b => {
+        const t = b.onclick?.toString().match(/'([^']+)'/)?.[1];
+        b.classList.toggle('active', t === tk);
+      });
+      currentType = tk;
+      st.className = 'fetch-status ok';
+      st.innerHTML = '✓ Bouteille identifiée : <strong>' + p.nom + '</strong> — vérifiez avant d\'ajouter.';
+
+      // Propose d'utiliser la photo scannée comme photo de fiche
+      const useAsPhoto = confirm('Voulez-vous utiliser cette photo comme visuel de la fiche ?');
+      if (useAsPhoto) {
+        document.getElementById('f-photo').value = e.target.result;
+        updateFormPhoto();
+        st.innerHTML += ' · Photo de l\'étiquette ajoutée ✓';
+      }
+
+    } catch(err) {
+      st.className = 'fetch-status err';
+      st.innerHTML = '✗ Étiquette non reconnue. Essayez avec une photo plus nette ou tapez le nom manuellement.';
+    }
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
 async function fetchFromUrl() {
-  const url = document.getElementById('url-input').value.trim(); if (!url) return;
+  const query = document.getElementById('url-input').value.trim(); if (!query) return;
   const btn = document.getElementById('btn-fetch'), st = document.getElementById('fetch-status');
-  btn.disabled = true; st.className='fetch-status'; st.innerHTML='<span class="spinner"></span> Lecture de la page…';
+  btn.disabled = true; st.className='fetch-status'; st.innerHTML='<span class="spinner"></span> Recherche en cours…';
   try {
+    // Build a smart prompt: works whether user gave a name or a URL
+    const isUrl = query.startsWith('http');
+    const prompt = isUrl
+      ? `Tu es expert en spiritueux. L'utilisateur a fourni cette URL de produit : ${query}
+Utilise la recherche web pour trouver les informations sur ce spiritueux (cherche le nom du produit si tu ne peux pas accéder à l'URL directement).
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown ni texte autour :
+{"nom":"","type":"Rhum|Whisky|Cognac|Gin|Calvados|Armagnac|Brandy|Mezcal|Autre","sousType":"","origine":"","degre":"","volume":"","vieillissement":"","nez":"","bouche":"","finale":"","notes":"","prix":""}`
+      : `Tu es expert en spiritueux. L'utilisateur recherche ce produit : "${query}"
+Utilise la recherche web pour trouver toutes les informations de dégustation de ce spiritueux.
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown ni texte autour :
+{"nom":"","type":"Rhum|Whisky|Cognac|Gin|Calvados|Armagnac|Brandy|Mezcal|Autre","sousType":"","origine":"","degre":"","volume":"","vieillissement":"","nez":"","bouche":"","finale":"","notes":"","prix":""}`;
+
     const r = await fetch(CLAUDE_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
-      model:'claude-sonnet-4-20250514', max_tokens:1200,
+      model:'claude-sonnet-4-20250514', max_tokens:1500,
       tools:[{type:'web_search_20250305',name:'web_search'}],
-      messages:[{role:'user',content:`Visite cette URL et extrais les infos du spiritueux. Réponds UNIQUEMENT avec un JSON valide sans markdown:\n{"nom":"","type":"Rhum|Whisky|Cognac|Gin|Calvados|Armagnac|Brandy|Mezcal|Autre","sousType":"","origine":"","degre":"","volume":"","vieillissement":"","nez":"","bouche":"","finale":"","notes":"","prix":"","photo":""}\nURL: ${url}`}]
+      messages:[{role:'user',content:prompt}]
     })});
+    if (!r.ok) throw new Error('API error ' + r.status);
     const d = await r.json(); let txt='';
     for (const b of d.content) if (b.type==='text') txt+=b.text;
     const m = txt.replace(/```json|```/g,'').trim().match(/\{[\s\S]*\}/);
-    if (!m) throw new Error();
+    if (!m) throw new Error('Pas de JSON');
     const p = JSON.parse(m[0]);
+    if (!p.nom) throw new Error('Produit non trouvé');
     document.getElementById('f-nom').value=p.nom||'';
     document.getElementById('f-soustype').value=p.sousType||'';
     document.getElementById('f-origine').value=p.origine||'';
@@ -592,13 +702,16 @@ async function fetchFromUrl() {
     document.getElementById('f-finale').value=p.finale||'';
     document.getElementById('f-notes').value=p.notes||'';
     document.getElementById('f-prix').value=p.prix||'';
-    currentSourceUrl=url; currentPhotoUrl=p.photo||'';
-    document.getElementById('f-photo').value=currentPhotoUrl; updateFormPhoto();
+    currentSourceUrl=isUrl?query:''; currentPhotoUrl='';
+    document.getElementById('f-photo').value=''; updateFormPhoto();
     const tk = Object.keys(typeIcons).includes(p.type)?p.type:'Autre';
     document.querySelectorAll('.type-btn').forEach(b=>{const t=b.onclick?.toString().match(/'([^']+)'/)?.[1];b.classList.toggle('active',t===tk);});
     currentType=tk;
-    st.className='fetch-status ok'; st.innerHTML='✓ Données importées'+(currentPhotoUrl?' · Photo ✓':'')+' — vérifiez avant d\'ajouter.';
-  } catch(e) { st.className='fetch-status err'; st.innerHTML='✗ Impossible d\'extraire les données.'; }
+    st.className='fetch-status ok'; st.innerHTML='✓ Données trouvées pour <strong>'+p.nom+'</strong> — vérifiez avant d\'ajouter.';
+  } catch(e) {
+    st.className='fetch-status err';
+    st.innerHTML='✗ Produit non trouvé. Essayez avec un nom plus précis (ex: "Plantation XO 20th Anniversary").';
+  }
   btn.disabled=false;
 }
 
