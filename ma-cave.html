@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ma Cave – Fiches de Dégustation</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://apis.google.com/js/api.js"></script>
-<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://apis.google.com/js/api.js" onload="onGapiLoad()"></script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="onGsiLoad()"></script>
 <style>
   :root {
     --brown: #3C2A1A;
@@ -472,65 +472,64 @@ async function uploadPhotoToGitHub(input) {
 let gapiReady = false;
 let gsiReady = false;
 
-function checkBothReady() {
-  if (gapiReady && gsiReady) {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: async (resp) => {
-        if (resp.error) { setSyncStatus('error','Erreur connexion'); return; }
-        accessToken = resp.access_token;
-        document.getElementById('btn-auth').textContent = 'Drive connecté ✓';
-        document.getElementById('btn-auth').style.borderColor = '#5CB85C';
-        document.getElementById('btn-auth').style.color = '#5CB85C';
-        setSyncStatus('syncing','Chargement…');
-        await loadFromDrive();
-      }
-    });
-    document.getElementById('btn-auth').disabled = false;
-  }
-}
-
-function initGoogleApi() {
-  document.getElementById('btn-auth').disabled = true;
-  // Load GAPI client
+function onGapiLoad() {
   gapi.load('client', async () => {
     try {
       await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
       gapiReady = true;
       checkBothReady();
     } catch(e) {
-      setSyncStatus('error', 'Erreur init Google');
+      setSyncStatus('error', 'Erreur chargement Google');
     }
   });
-  // GSI (Google Sign-In) is loaded via script tag - check if already ready
-  if (typeof google !== 'undefined' && google.accounts) {
-    gsiReady = true;
-    checkBothReady();
-  } else {
-    // Wait for GSI script to load
-    const gsiCheck = setInterval(() => {
-      if (typeof google !== 'undefined' && google.accounts) {
-        clearInterval(gsiCheck);
-        gsiReady = true;
-        checkBothReady();
+}
+
+function onGsiLoad() {
+  gsiReady = true;
+  checkBothReady();
+}
+
+function checkBothReady() {
+  if (!gapiReady || !gsiReady) return;
+  try {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (resp) => {
+        if (resp.error) { setSyncStatus('error', 'Erreur connexion'); return; }
+        accessToken = resp.access_token;
+        const btn = document.getElementById('btn-auth');
+        btn.textContent = 'Drive connecté ✓';
+        btn.style.borderColor = '#5CB85C';
+        btn.style.color = '#5CB85C';
+        setSyncStatus('syncing', 'Chargement…');
+        await loadFromDrive();
       }
-    }, 100);
+    });
+    setSyncStatus('', 'Prêt');
+  } catch(e) {
+    setSyncStatus('error', 'Erreur init OAuth');
   }
+}
+
+function initGoogleApi() {
+  // onGapiLoad and onGsiLoad are called by script onload attributes
+  // This is just a fallback in case scripts were already loaded
+  if (typeof gapi !== 'undefined') onGapiLoad();
+  if (typeof google !== 'undefined' && google.accounts) onGsiLoad();
 }
 
 function handleAuth() {
   if (accessToken) return;
   if (!tokenClient) {
-    setSyncStatus('error', 'Chargement en cours…');
-    // Retry after a short delay
-    setTimeout(() => {
-      if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
-      else setSyncStatus('error', 'Rechargez la page');
-    }, 1500);
+    setSyncStatus('error', 'API Google non chargée — rechargez la page');
     return;
   }
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+  try {
+    tokenClient.requestAccessToken({ prompt: '' });
+  } catch(e) {
+    setSyncStatus('error', 'Erreur connexion : ' + e.message);
+  }
 }
 
 function setSyncStatus(state, label) {
